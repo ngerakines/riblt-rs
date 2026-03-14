@@ -1,0 +1,47 @@
+use crate::symbol::{HashedSymbol, Symbol};
+
+/// A coded symbol produced by the RIBLT encoder.
+///
+/// Each coded symbol is the XOR-combination of a pseudo-random subset of source symbols.
+/// It contains the XOR of their values, XOR of their hashes, and a net count.
+#[derive(Debug, Clone)]
+pub struct CodedSymbol<T: Symbol> {
+    /// XOR of all source symbols mapped to this coded symbol.
+    pub symbol: T,
+    /// XOR of all source symbol hashes.
+    pub hash: u64,
+    /// Net count of source symbols (positive for encoder-side, negative for decoder-side).
+    pub count: i64,
+}
+
+impl<T: Symbol> Default for CodedSymbol<T> {
+    fn default() -> Self {
+        Self {
+            symbol: T::default(),
+            hash: 0,
+            count: 0,
+        }
+    }
+}
+
+impl<T: Symbol> CodedSymbol<T> {
+    /// Apply a source symbol to this coded symbol.
+    ///
+    /// `direction` is `1` to add or `-1` to remove.
+    pub fn apply(&mut self, s: &HashedSymbol<T>, direction: i64) {
+        self.symbol = self.symbol.xor(&s.symbol);
+        self.hash ^= s.hash;
+        self.count += direction;
+    }
+
+    /// Returns `true` if this coded symbol contains exactly one source symbol
+    /// and the hash is consistent.
+    pub fn is_pure(&self) -> bool {
+        (self.count == 1 || self.count == -1) && self.hash == self.symbol.hash()
+    }
+
+    /// Returns `true` if this coded symbol is empty (all symbols cancelled out).
+    pub fn is_zero(&self) -> bool {
+        self.count == 0 && self.hash == 0
+    }
+}
