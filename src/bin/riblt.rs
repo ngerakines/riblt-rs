@@ -3,42 +3,16 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::process;
 
-use clap::{Parser, Subcommand};
 use riblt::byte_symbol::ByteSymbol;
 use riblt::file_format::RibltFile;
 use riblt::{CodedSymbol, Encoder, Symbol};
 
-#[derive(Parser)]
-#[command(name = "riblt", about = "RIBLT set reconciliation tool")]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Command>,
-
-    /// Output file path (used when reading from stdin)
-    #[arg(long = "out", short = 'o')]
-    output: Option<PathBuf>,
-
-    /// Number of coded symbols to generate (default: 2x input records)
-    #[arg(long = "num", short = 'n')]
-    num_symbols: Option<usize>,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Compare two RIBLT files and report whether they represent the same set
-    Compare {
-        /// First RIBLT file
-        file_a: PathBuf,
-        /// Second RIBLT file
-        file_b: PathBuf,
-    },
-    /// Compute and display the symmetric difference between two RIBLT files
-    Difference {
-        /// First RIBLT file
-        file_a: PathBuf,
-        /// Second RIBLT file
-        file_b: PathBuf,
-    },
+fn usage() -> ! {
+    eprintln!("Usage:");
+    eprintln!("  <data> | riblt --out <file.riblt> [--num <count>]");
+    eprintln!("  riblt compare <file_a.riblt> <file_b.riblt>");
+    eprintln!("  riblt difference <file_a.riblt> <file_b.riblt>");
+    process::exit(1);
 }
 
 fn build_from_stdin(output: PathBuf, num_symbols: Option<usize>) -> io::Result<()> {
@@ -92,7 +66,6 @@ fn cmd_compare(file_a: PathBuf, file_b: PathBuf) -> io::Result<()> {
         process::exit(1);
     }
 
-    // Subtract coded symbols and try to peel
     let mut diff_symbols: Vec<CodedSymbol<ByteSymbol>> = a
         .coded_symbols
         .iter()
@@ -105,7 +78,6 @@ fn cmd_compare(file_a: PathBuf, file_b: PathBuf) -> io::Result<()> {
         })
         .collect();
 
-    // Check if all are zero (identical sets)
     let all_zero = diff_symbols.iter().all(|cs| cs.is_zero());
 
     if all_zero {
@@ -123,7 +95,6 @@ fn cmd_compare(file_a: PathBuf, file_b: PathBuf) -> io::Result<()> {
             b.coded_symbols.len()
         );
     } else {
-        // Try to decode the difference to count it
         let (fwd, rev, success) = peel_difference(&mut diff_symbols);
 
         if success {
@@ -240,23 +211,63 @@ fn peel_difference(
 }
 
 fn main() {
-    let cli = Cli::parse();
+    let args: Vec<String> = std::env::args().skip(1).collect();
 
-    let result = match cli.command {
-        Some(Command::Compare { file_a, file_b }) => cmd_compare(file_a, file_b),
-        Some(Command::Difference { file_a, file_b }) => cmd_difference(file_a, file_b),
-        None => {
-            // Build mode: read from stdin, write to output file
-            let output = match cli.output {
-                Some(path) => path,
-                None => {
-                    eprintln!("Error: --out <path> is required when building from stdin");
-                    eprintln!("Usage: <data> | riblt --out <data.riblt>");
+    // Parse --out and --num flags, collect remaining positional args
+    let mut output: Option<PathBuf> = None;
+    let mut num_symbols: Option<usize> = None;
+    let mut positional = Vec::new();
+    let mut i = 0;
+
+    while i < args.len() {
+        match args[i].as_str() {
+            "--out" => {
+                i += 1;
+                output = Some(PathBuf::from(args.get(i).unwrap_or_else(|| {
+                    eprintln!("Error: --out requires a path");
                     process::exit(1);
-                }
-            };
-            build_from_stdin(output, cli.num_symbols)
+                })));
+            }
+            "--num" => {
+                i += 1;
+                let val = args.get(i).unwrap_or_else(|| {
+                    eprintln!("Error: --num requires a number");
+                    process::exit(1);
+                });
+                num_symbols = Some(val.parse().unwrap_or_else(|_| {
+                    eprintln!("Error: --num must be a positive integer");
+                    process::exit(1);
+                }));
+            }
+            "--help" | "-h" => usage(),
+            _ => positional.push(args[i].clone()),
         }
+        i += 1;
+    }
+
+    let result = match positional.len() {
+        0 => {
+            // Build mode: read from stdin
+            let out = output.unwrap_or_else(|| {
+                eprintln!("Error: --out <path> is required when building from stdin");
+                usage();
+            });
+            build_from_stdin(out, num_symbols)
+        }
+        3 => {
+            let cmd = positional[0].as_str();
+            let file_a = PathBuf::from(&positional[1]);
+            let file_b = PathBuf::from(&positional[2]);
+            match cmd {
+                "compare" => cmd_compare(file_a, file_b),
+                "difference" => cmd_difference(file_a, file_b),
+                _ => {
+                    eprintln!("Error: unknown command '{cmd}'");
+                    usage();
+                }
+            }
+        }
+        _ => usage(),
     };
 
     if let Err(e) = result {
