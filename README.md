@@ -14,7 +14,76 @@ Key properties:
 - **Efficient**: Requires approximately **1.35x** the symmetric difference size in coded symbols for successful decoding
 - **Communication-optimal**: Overhead is proportional to the difference, not the set sizes
 
-## Usage
+## CLI Tool
+
+The `riblt` binary reads line-delimited data, encodes it into `.riblt` files, and supports comparing or diffing two files.
+
+### Build from stdin
+
+Pipe line-delimited records into `riblt` to produce an encoded file:
+
+```sh
+cat records.txt | riblt --out records.riblt
+```
+
+Each non-empty line becomes one set element. By default, the number of coded symbols is 2x the input record count (minimum 100). Override with `--num`:
+
+```sh
+seq 1 10000 | riblt --out large.riblt --num 5000
+```
+
+### Compare two files
+
+Check whether two `.riblt` files represent the same set:
+
+```sh
+riblt compare alice.riblt bob.riblt
+```
+
+Output:
+
+```
+MATCH: sets are identical
+  File A: alice.riblt (100 records, 200 symbols)
+  File B: bob.riblt (100 records, 200 symbols)
+```
+
+Or when sets differ:
+
+```
+DIFFER: 2 element(s) differ
+  1 only in alice.riblt
+  1 only in bob.riblt
+```
+
+### Compute the difference
+
+Show which elements are exclusive to each file:
+
+```sh
+riblt difference alice.riblt bob.riblt
+```
+
+Output:
+
+```
+- dave
++ eve
+```
+
+Lines prefixed with `-` are in the first file only. Lines prefixed with `+` are in the second file only.
+
+If the encoded files don't contain enough coded symbols to fully decode the difference, `riblt` prints a warning to stderr and exits with code 2.
+
+### Full usage
+
+```
+<data> | riblt --out <file.riblt> [--num <count>]
+riblt compare <file_a.riblt> <file_b.riblt>
+riblt difference <file_a.riblt> <file_b.riblt>
+```
+
+## Library Usage
 
 ```rust
 use riblt::{Encoder, Decoder, Symbol};
