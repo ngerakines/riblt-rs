@@ -1,0 +1,21 @@
+[package]
+name = "riblt"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+description = "Rateless Invertible Bloom Lookup Tables for set reconciliation"
+repository = "https://github.com/ngerakines/riblt-rs"
+keywords = ["set-reconciliation", "iblt", "bloom", "rateless", "sync"]
+categories = ["data-structures", "algorithms"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+rand = "0.9"
+
+[[bench]]
+name = "reconciliation"
+harness = false
