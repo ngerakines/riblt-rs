@@ -12,6 +12,8 @@ use crate::symbol::HashKey;
 pub struct ByteSymbol(pub Vec<u8>);
 
 impl Symbol for ByteSymbol {
+    type Checksum = u64;
+
     fn xor(&self, other: &Self) -> Self {
         let len = self.0.len().max(other.0.len());
         let mut result = vec![0u8; len];
@@ -34,11 +36,19 @@ impl Symbol for ByteSymbol {
         hasher.finish()
     }
 
+    fn mapping_seed(&self) -> u64 {
+        self.hash()
+    }
+
     fn keyed_hash(&self, key: &HashKey) -> u64 {
         let k0 = u64::from_le_bytes(key[..8].try_into().unwrap());
         let k1 = u64::from_le_bytes(key[8..].try_into().unwrap());
         let mut hasher = SipHasher24::new_with_keys(k0, k1);
         self.0.hash(&mut hasher);
         hasher.finish()
+    }
+
+    fn keyed_mapping_seed(&self, key: &HashKey) -> u64 {
+        self.keyed_hash(key)
     }
 }
