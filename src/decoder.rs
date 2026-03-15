@@ -1,5 +1,5 @@
 use crate::coded_symbol::CodedSymbol;
-use crate::symbol::{HashedSymbol, Symbol};
+use crate::symbol::{HashKey, HashedSymbol, Symbol};
 use crate::window::CodingWindow;
 
 /// Recovers the symmetric difference between two sets by processing coded symbols.
@@ -28,6 +28,8 @@ pub struct Decoder<T: Symbol> {
     decodable: Vec<usize>,
     /// Number of coded symbols successfully decoded.
     decoded_count: usize,
+    /// Optional key for keyed hashing.
+    key: Option<HashKey>,
 }
 
 impl<T: Symbol> Decoder<T> {
@@ -39,6 +41,22 @@ impl<T: Symbol> Decoder<T> {
             remote_window: CodingWindow::new(),
             decodable: Vec::new(),
             decoded_count: 0,
+            key: None,
+        }
+    }
+
+    /// Create a decoder with a keyed hash function for adversarial resilience.
+    ///
+    /// The encoder must use the same key.
+    pub fn with_key(key: HashKey) -> Self {
+        Self {
+            coded_symbols: Vec::new(),
+            window: CodingWindow::new(),
+            local_window: CodingWindow::new(),
+            remote_window: CodingWindow::new(),
+            decodable: Vec::new(),
+            decoded_count: 0,
+            key: Some(key),
         }
     }
 
@@ -46,7 +64,11 @@ impl<T: Symbol> Decoder<T> {
     ///
     /// Must be called before any [`add_coded_symbol`](Self::add_coded_symbol).
     pub fn add_symbol(&mut self, s: T) {
-        self.add_hashed_symbol(HashedSymbol::new(s));
+        let hs = match &self.key {
+            Some(k) => HashedSymbol::new_keyed(s, k),
+            None => HashedSymbol::new(s),
+        };
+        self.add_hashed_symbol(hs);
     }
 
     /// Add a pre-hashed symbol from the decoder's local set.
@@ -65,7 +87,7 @@ impl<T: Symbol> Decoder<T> {
         self.local_window.apply_window(&mut c, 1); // add back already-discovered local symbols
 
         // Check if immediately decodable
-        if c.is_pure() || c.is_zero() {
+        if c.is_pure_with_key(self.key.as_ref()) || c.is_zero() {
             self.decodable.push(self.coded_symbols.len());
         }
 
@@ -95,6 +117,7 @@ impl<T: Symbol> Decoder<T> {
                         &mut self.coded_symbols,
                         -1,
                         &mut self.decodable,
+                        self.key.as_ref(),
                     );
                     self.remote_window
                         .add_hashed_symbol_with_mapping(ns, mapping);
@@ -112,6 +135,7 @@ impl<T: Symbol> Decoder<T> {
                         &mut self.coded_symbols,
                         1,
                         &mut self.decodable,
+                        self.key.as_ref(),
                     );
                     self.local_window
                         .add_hashed_symbol_with_mapping(ns, mapping);

@@ -1,4 +1,4 @@
-use crate::symbol::{HashedSymbol, Symbol};
+use crate::symbol::{HashKey, HashedSymbol, Symbol};
 
 /// A coded symbol produced by the RIBLT encoder.
 ///
@@ -37,7 +37,17 @@ impl<T: Symbol> CodedSymbol<T> {
     /// Returns `true` if this coded symbol contains exactly one source symbol
     /// and the hash is consistent.
     pub fn is_pure(&self) -> bool {
-        (self.count == 1 || self.count == -1) && self.hash == self.symbol.hash()
+        self.is_pure_with_key(None)
+    }
+
+    /// Returns `true` if this coded symbol contains exactly one source symbol
+    /// and the hash is consistent, using a keyed hash if provided.
+    pub fn is_pure_with_key(&self, key: Option<&HashKey>) -> bool {
+        let expected = match key {
+            Some(k) => self.symbol.keyed_hash(k),
+            None => self.symbol.hash(),
+        };
+        (self.count == 1 || self.count == -1) && self.hash == expected
     }
 
     /// Returns `true` if this coded symbol is empty (all symbols cancelled out).

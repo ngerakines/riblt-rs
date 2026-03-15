@@ -1,6 +1,9 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+use siphasher::sip::SipHasher24;
+
 use crate::Symbol;
+use crate::symbol::HashKey;
 
 /// A variable-length byte string symbol for use with RIBLT.
 ///
@@ -27,6 +30,14 @@ impl Symbol for ByteSymbol {
 
     fn hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
+        self.0.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn keyed_hash(&self, key: &HashKey) -> u64 {
+        let k0 = u64::from_le_bytes(key[..8].try_into().unwrap());
+        let k1 = u64::from_le_bytes(key[8..].try_into().unwrap());
+        let mut hasher = SipHasher24::new_with_keys(k0, k1);
         self.0.hash(&mut hasher);
         hasher.finish()
     }

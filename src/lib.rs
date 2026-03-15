@@ -73,4 +73,4 @@ pub use decoder::Decoder;
 pub use encoder::Encoder;
 pub use mapping::RandomMapping;
 pub use sketch::Sketch;
-pub use symbol::{HashedSymbol, Symbol};
+pub use symbol::{HashKey, HashedSymbol, Symbol};
