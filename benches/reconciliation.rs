@@ -5,6 +5,8 @@ use riblt::{Decoder, Encoder, Symbol};
 struct BenchSymbol(u64);
 
 impl Symbol for BenchSymbol {
+    type Checksum = u64;
+
     fn xor(&self, other: &Self) -> Self {
         BenchSymbol(self.0 ^ other.0)
     }
@@ -17,6 +19,10 @@ impl Symbol for BenchSymbol {
         h = h.wrapping_mul(0x94d049bb133111eb);
         h ^= h >> 31;
         h
+    }
+
+    fn mapping_seed(&self) -> u64 {
+        self.hash()
     }
 }
 

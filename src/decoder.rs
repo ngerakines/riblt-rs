@@ -1,5 +1,5 @@
 use crate::coded_symbol::CodedSymbol;
-use crate::symbol::{HashKey, HashedSymbol, Symbol};
+use crate::symbol::{ChecksumHash, HashKey, HashedSymbol, Symbol};
 use crate::window::CodingWindow;
 
 /// Recovers the symmetric difference between two sets by processing coded symbols.
@@ -107,9 +107,15 @@ impl<T: Symbol> Decoder<T> {
             match c.count {
                 1 => {
                     // Symbol exclusive to the encoder's set (remote)
+                    let sym = T::default().xor(&c.symbol);
+                    let mapping_seed = match self.key.as_ref() {
+                        Some(k) => sym.keyed_mapping_seed(k),
+                        None => sym.mapping_seed(),
+                    };
                     let ns = HashedSymbol {
-                        symbol: T::default().xor(&c.symbol),
-                        hash: c.hash,
+                        symbol: sym,
+                        hash: c.hash.clone(),
+                        mapping_seed,
                     };
 
                     let mapping = CodingWindow::apply_new_symbol(
@@ -125,9 +131,15 @@ impl<T: Symbol> Decoder<T> {
                 }
                 -1 => {
                     // Symbol exclusive to the decoder's set (local)
+                    let sym = T::default().xor(&c.symbol);
+                    let mapping_seed = match self.key.as_ref() {
+                        Some(k) => sym.keyed_mapping_seed(k),
+                        None => sym.mapping_seed(),
+                    };
                     let ns = HashedSymbol {
-                        symbol: T::default().xor(&c.symbol),
-                        hash: c.hash,
+                        symbol: sym,
+                        hash: c.hash.negate(),
+                        mapping_seed,
                     };
 
                     let mapping = CodingWindow::apply_new_symbol(

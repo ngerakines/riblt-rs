@@ -105,9 +105,9 @@ impl<T: Symbol> CodingWindow<T> {
         }
     }
 
-    /// Add a symbol with a fresh mapping (seeded from its hash, starting at index 0).
+    /// Add a symbol with a fresh mapping (seeded from its mapping seed, starting at index 0).
     pub fn add_hashed_symbol(&mut self, s: HashedSymbol<T>) {
-        let m = RandomMapping::new(s.hash);
+        let m = RandomMapping::new(s.mapping_seed);
         self.add_hashed_symbol_with_mapping(s, m);
     }
 
@@ -152,7 +152,7 @@ impl<T: Symbol> CodingWindow<T> {
         decodable: &mut Vec<usize>,
         key: Option<&HashKey>,
     ) -> RandomMapping {
-        let mut m = RandomMapping::new(s.hash);
+        let mut m = RandomMapping::new(s.mapping_seed);
         let num_coded = coded_symbols.len();
 
         // First mapped index is always 0 (from RandomMapping::new)

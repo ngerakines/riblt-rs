@@ -18,6 +18,7 @@
 //! struct Item(u64);
 //!
 //! impl Symbol for Item {
+//!     type Checksum = u64;
 //!     fn xor(&self, other: &Self) -> Self {
 //!         Item(self.0 ^ other.0)
 //!     }
@@ -28,6 +29,7 @@
 //!         h ^= h >> 27; h = h.wrapping_mul(0x94d049bb133111eb);
 //!         h ^= h >> 31; h
 //!     }
+//!     fn mapping_seed(&self) -> u64 { self.hash() }
 //! }
 //!
 //! // Alice has {1, 2, 3, 4}, Bob has {1, 2, 3, 5}
@@ -61,6 +63,8 @@
 pub mod byte_symbol;
 mod coded_symbol;
 mod decoder;
+#[cfg(feature = "ecmh")]
+pub mod ecmh;
 mod encoder;
 pub mod file_format;
 mod mapping;
@@ -73,4 +77,4 @@ pub use decoder::Decoder;
 pub use encoder::Encoder;
 pub use mapping::RandomMapping;
 pub use sketch::Sketch;
-pub use symbol::{HashKey, HashedSymbol, Symbol};
+pub use symbol::{ChecksumHash, HashKey, HashedSymbol, Symbol};

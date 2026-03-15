@@ -5,7 +5,7 @@ use std::process;
 
 use riblt::byte_symbol::ByteSymbol;
 use riblt::file_format::RibltFile;
-use riblt::{CodedSymbol, Encoder, Symbol};
+use riblt::{ChecksumHash, CodedSymbol, Encoder, Symbol};
 
 fn usage() -> ! {
     eprintln!("Usage:");
@@ -73,7 +73,7 @@ fn cmd_compare(file_a: PathBuf, file_b: PathBuf) -> io::Result<()> {
         .take(use_len)
         .map(|(ca, cb)| CodedSymbol {
             symbol: ca.symbol.xor(&cb.symbol),
-            hash: ca.hash ^ cb.hash,
+            hash: ca.hash.uncombine(&cb.hash),
             count: ca.count - cb.count,
         })
         .collect();
@@ -128,7 +128,7 @@ fn cmd_difference(file_a: PathBuf, file_b: PathBuf) -> io::Result<()> {
         .take(use_len)
         .map(|(ca, cb)| CodedSymbol {
             symbol: ca.symbol.xor(&cb.symbol),
-            hash: ca.hash ^ cb.hash,
+            hash: ca.hash.uncombine(&cb.hash),
             count: ca.count - cb.count,
         })
         .collect();
@@ -176,7 +176,12 @@ fn peel_difference(
             }
 
             let recovered = ByteSymbol::default().xor(&symbols[i].symbol);
-            let hash = symbols[i].hash;
+            let hash = if symbols[i].count == 1 {
+                symbols[i].hash.clone()
+            } else {
+                symbols[i].hash.negate()
+            };
+            let mapping_seed = recovered.mapping_seed();
             let direction = if symbols[i].count == 1 {
                 forward.push(recovered.clone());
                 -1i64
@@ -186,14 +191,18 @@ fn peel_difference(
             };
 
             // Peel from all mapped coded symbols
-            let mut mapping = riblt::RandomMapping::new(hash);
+            let mut mapping = riblt::RandomMapping::new(mapping_seed);
             loop {
                 let idx = mapping.last_index();
                 if idx >= len {
                     break;
                 }
                 symbols[idx].symbol = symbols[idx].symbol.xor(&recovered);
-                symbols[idx].hash ^= hash;
+                if direction >= 0 {
+                    symbols[idx].hash = symbols[idx].hash.combine(&hash);
+                } else {
+                    symbols[idx].hash = symbols[idx].hash.uncombine(&hash);
+                }
                 symbols[idx].count += direction;
                 mapping.next_index();
             }

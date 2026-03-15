@@ -25,6 +25,7 @@ use crate::window::CodingWindow;
 /// # #[derive(Clone, Default, Debug)]
 /// # struct MySymbol(u64);
 /// # impl Symbol for MySymbol {
+/// #     type Checksum = u64;
 /// #     fn xor(&self, other: &Self) -> Self { MySymbol(self.0 ^ other.0) }
 /// #     fn hash(&self) -> u64 {
 /// #         let mut h = self.0;
@@ -32,6 +33,7 @@ use crate::window::CodingWindow;
 /// #         h ^= h >> 33; h = h.wrapping_mul(0xc4ceb9fe1a85ec53);
 /// #         h ^= h >> 33; h
 /// #     }
+/// #     fn mapping_seed(&self) -> u64 { self.hash() }
 /// # }
 /// let mut enc = Encoder::new();
 /// enc.add_symbol(MySymbol(1));

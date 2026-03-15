@@ -1,6 +1,6 @@
 use crate::coded_symbol::CodedSymbol;
 use crate::mapping::RandomMapping;
-use crate::symbol::{HashedSymbol, Symbol};
+use crate::symbol::{ChecksumHash, HashedSymbol, Symbol};
 
 /// A fixed-size batch of coded symbols for standalone IBLT operations.
 ///
@@ -27,7 +27,7 @@ impl<T: Symbol> Sketch<T> {
     /// Add a pre-hashed source symbol to the sketch.
     pub fn add_hashed_symbol(&mut self, s: &HashedSymbol<T>) {
         let len = self.symbols.len();
-        let mut mapping = RandomMapping::new(s.hash);
+        let mut mapping = RandomMapping::new(s.mapping_seed);
         loop {
             let idx = mapping.next_index();
             if idx >= len {
@@ -40,7 +40,7 @@ impl<T: Symbol> Sketch<T> {
     /// Remove a source symbol from the sketch.
     pub fn remove_hashed_symbol(&mut self, s: &HashedSymbol<T>) {
         let len = self.symbols.len();
-        let mut mapping = RandomMapping::new(s.hash);
+        let mut mapping = RandomMapping::new(s.mapping_seed);
         loop {
             let idx = mapping.next_index();
             if idx >= len {
@@ -59,7 +59,7 @@ impl<T: Symbol> Sketch<T> {
         );
         for (a, b) in self.symbols.iter_mut().zip(other.symbols.iter()) {
             a.symbol = a.symbol.xor(&b.symbol);
-            a.hash ^= b.hash;
+            a.hash = a.hash.uncombine(&b.hash);
             a.count -= b.count;
         }
     }
@@ -86,9 +86,16 @@ impl<T: Symbol> Sketch<T> {
                     continue;
                 }
 
+                let sym = T::default().xor(&self.symbols[i].symbol);
+                let hash = if self.symbols[i].count == 1 {
+                    self.symbols[i].hash.clone()
+                } else {
+                    self.symbols[i].hash.negate()
+                };
                 let s = HashedSymbol {
-                    symbol: T::default().xor(&self.symbols[i].symbol),
-                    hash: self.symbols[i].hash,
+                    symbol: sym.clone(),
+                    hash,
+                    mapping_seed: sym.mapping_seed(),
                 };
 
                 let direction = if self.symbols[i].count == 1 {
@@ -100,7 +107,7 @@ impl<T: Symbol> Sketch<T> {
                 };
 
                 // Peel this symbol from all coded symbols it maps to
-                let mut mapping = RandomMapping::new(s.hash);
+                let mut mapping = RandomMapping::new(s.mapping_seed);
                 loop {
                     let idx = mapping.next_index();
                     if idx >= len {
