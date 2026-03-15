@@ -1,5 +1,5 @@
 use crate::coded_symbol::CodedSymbol;
-use crate::symbol::{HashedSymbol, Symbol};
+use crate::symbol::{HashKey, HashedSymbol, Symbol};
 use crate::window::CodingWindow;
 
 /// Generates an infinite sequence of coded symbols for a set of source symbols.
@@ -11,6 +11,11 @@ use crate::window::CodingWindow;
 /// 3. Stream the coded symbols to a [`Decoder`](crate::Decoder).
 ///
 /// Once you begin producing coded symbols, do not add more source symbols.
+///
+/// # Keyed hashing
+///
+/// Use [`Encoder::with_key`] to protect against adversarial workloads.
+/// Both encoder and decoder must use the same key.
 ///
 /// # Example
 ///
@@ -39,12 +44,24 @@ use crate::window::CodingWindow;
 /// ```
 pub struct Encoder<T: Symbol> {
     window: CodingWindow<T>,
+    key: Option<HashKey>,
 }
 
 impl<T: Symbol> Encoder<T> {
     pub fn new() -> Self {
         Self {
             window: CodingWindow::new(),
+            key: None,
+        }
+    }
+
+    /// Create an encoder with a keyed hash function for adversarial resilience.
+    ///
+    /// The decoder must use the same key.
+    pub fn with_key(key: HashKey) -> Self {
+        Self {
+            window: CodingWindow::new(),
+            key: Some(key),
         }
     }
 
@@ -52,7 +69,11 @@ impl<T: Symbol> Encoder<T> {
     ///
     /// Must be called before any [`produce_next_coded_symbol`](Self::produce_next_coded_symbol).
     pub fn add_symbol(&mut self, s: T) {
-        self.add_hashed_symbol(HashedSymbol::new(s));
+        let hs = match &self.key {
+            Some(k) => HashedSymbol::new_keyed(s, k),
+            None => HashedSymbol::new(s),
+        };
+        self.add_hashed_symbol(hs);
     }
 
     /// Add a pre-hashed source symbol.

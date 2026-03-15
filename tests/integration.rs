@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use riblt::{Decoder, Encoder, Sketch, Symbol};
+use riblt::{Decoder, Encoder, HashKey, Sketch, Symbol};
 
 /// A simple test symbol wrapping a u64.
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
@@ -20,6 +20,16 @@ impl Symbol for TestSymbol {
         h = h.wrapping_mul(0x94d049bb133111eb);
         h ^= h >> 31;
         h
+    }
+
+    fn keyed_hash(&self, key: &HashKey) -> u64 {
+        use siphasher::sip::SipHasher24;
+        use std::hash::{Hash, Hasher};
+        let k0 = u64::from_le_bytes(key[..8].try_into().unwrap());
+        let k1 = u64::from_le_bytes(key[8..].try_into().unwrap());
+        let mut hasher = SipHasher24::new_with_keys(k0, k1);
+        self.0.hash(&mut hasher);
+        hasher.finish()
     }
 }
 
@@ -173,4 +183,90 @@ fn sketch_basic() {
 
     assert_eq!(fwd_set, expected_fwd);
     assert_eq!(rev_set, expected_rev);
+}
+
+/// Run a keyed reconciliation and verify the symmetric difference.
+fn reconcile_keyed(alice_set: &[u64], bob_set: &[u64], key: HashKey, max_symbols: usize) {
+    let mut encoder = Encoder::with_key(key);
+    for &v in alice_set {
+        encoder.add_symbol(TestSymbol(v));
+    }
+
+    let mut decoder = Decoder::with_key(key);
+    for &v in bob_set {
+        decoder.add_symbol(TestSymbol(v));
+    }
+
+    for _ in 0..max_symbols {
+        let coded = encoder.produce_next_coded_symbol();
+        decoder.add_coded_symbol(coded);
+        decoder.try_decode();
+        if decoder.decoded() {
+            break;
+        }
+    }
+
+    assert!(
+        decoder.decoded(),
+        "keyed: failed to decode within {max_symbols} symbols"
+    );
+
+    let alice: HashSet<u64> = alice_set.iter().copied().collect();
+    let bob: HashSet<u64> = bob_set.iter().copied().collect();
+
+    let expected_remote: HashSet<u64> = alice.difference(&bob).copied().collect();
+    let expected_local: HashSet<u64> = bob.difference(&alice).copied().collect();
+
+    let actual_remote: HashSet<u64> = decoder.remote().iter().map(|s| s.symbol.0).collect();
+    let actual_local: HashSet<u64> = decoder.local().iter().map(|s| s.symbol.0).collect();
+
+    assert_eq!(actual_remote, expected_remote, "keyed: remote mismatch");
+    assert_eq!(actual_local, expected_local, "keyed: local mismatch");
+}
+
+#[test]
+fn keyed_basic_reconciliation() {
+    let key: HashKey = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    reconcile_keyed(&[1, 2, 3, 4], &[1, 2, 3, 5], key, 50);
+}
+
+#[test]
+fn keyed_larger_difference() {
+    let key: HashKey = [42; 16];
+    let common: Vec<u64> = (1..=100).collect();
+    let alice_only: Vec<u64> = (1000..1020).collect();
+    let bob_only: Vec<u64> = (2000..2015).collect();
+
+    let alice: Vec<u64> = common.iter().chain(alice_only.iter()).copied().collect();
+    let bob: Vec<u64> = common.iter().chain(bob_only.iter()).copied().collect();
+
+    reconcile_keyed(&alice, &bob, key, 200);
+}
+
+#[test]
+fn keyed_different_keys_produce_different_hashes() {
+    let key_a: HashKey = [1; 16];
+    let key_b: HashKey = [2; 16];
+    let sym = TestSymbol(42);
+
+    assert_ne!(sym.keyed_hash(&key_a), sym.keyed_hash(&key_b));
+}
+
+#[test]
+fn keyed_deterministic_encoding() {
+    let key: HashKey = [7; 16];
+    let mut enc1 = Encoder::with_key(key);
+    let mut enc2 = Encoder::with_key(key);
+    for v in 1..=10u64 {
+        enc1.add_symbol(TestSymbol(v));
+        enc2.add_symbol(TestSymbol(v));
+    }
+
+    for _ in 0..20 {
+        let c1 = enc1.produce_next_coded_symbol();
+        let c2 = enc2.produce_next_coded_symbol();
+        assert_eq!(c1.hash, c2.hash);
+        assert_eq!(c1.count, c2.count);
+        assert_eq!(c1.symbol.0, c2.symbol.0);
+    }
 }

@@ -1,6 +1,6 @@
 use crate::coded_symbol::CodedSymbol;
 use crate::mapping::RandomMapping;
-use crate::symbol::{HashedSymbol, Symbol};
+use crate::symbol::{HashKey, HashedSymbol, Symbol};
 
 /// Entry in the priority queue mapping a source symbol to its next coded symbol index.
 #[derive(Debug, Clone)]
@@ -150,6 +150,7 @@ impl<T: Symbol> CodingWindow<T> {
         coded_symbols: &mut [CodedSymbol<T>],
         direction: i64,
         decodable: &mut Vec<usize>,
+        key: Option<&HashKey>,
     ) -> RandomMapping {
         let mut m = RandomMapping::new(s.hash);
         let num_coded = coded_symbols.len();
@@ -160,9 +161,7 @@ impl<T: Symbol> CodingWindow<T> {
             coded_symbols[cidx].apply(s, direction);
 
             // Check if newly decodable (only count ±1, not 0 — see Go comment about duplicates)
-            if (coded_symbols[cidx].count == -1 || coded_symbols[cidx].count == 1)
-                && coded_symbols[cidx].hash == coded_symbols[cidx].symbol.hash()
-            {
+            if coded_symbols[cidx].is_pure_with_key(key) {
                 decodable.push(cidx);
             }
 
