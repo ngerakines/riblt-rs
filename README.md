@@ -85,7 +85,9 @@ riblt difference <file_a.riblt> <file_b.riblt>
 
 ## Peer-to-Peer Demo
 
-The `rateless-peer` binary demonstrates live, interactive set reconciliation between two peers over TCP.
+Two binaries demonstrate live, interactive set reconciliation between peers. Both stream coded symbols bidirectionally until the symmetric difference is resolved. After the initial piped input, you can type new values interactively to trigger re-reconciliation.
+
+### rateless-peer (TCP)
 
 ```sh
 # Terminal 1: start a peer with an initial set
@@ -95,11 +97,24 @@ seq 100 200 | rateless-peer
 seq 98 198 | rateless-peer 127.0.0.1:32000
 ```
 
-Both peers stream coded symbols bidirectionally until the symmetric difference is resolved. After the initial piped input, you can type new values interactively to trigger re-reconciliation.
+### quinn-peer (QUIC)
+
+The `quinn-peer` binary provides the same functionality over QUIC using the `quinn` crate. It uses self-signed TLS certificates generated at runtime and requires the `quinn-peer` feature:
+
+```sh
+# Build with QUIC support
+cargo build --features quinn-peer
+
+# Terminal 1: listen
+seq 100 200 | quinn-peer
+
+# Terminal 2: connect
+seq 98 198 | quinn-peer 127.0.0.1:32000
+```
 
 ### Options
 
-Options are passed as query string parameters on the address argument:
+Options are passed as query string parameters on the address argument (both binaries use the same syntax):
 
 ```sh
 # Keyed hashing (both peers must use the same key)
