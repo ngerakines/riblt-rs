@@ -83,6 +83,40 @@ riblt compare <file_a.riblt> <file_b.riblt>
 riblt difference <file_a.riblt> <file_b.riblt>
 ```
 
+## Peer-to-Peer Demo
+
+The `rateless-peer` binary demonstrates live, interactive set reconciliation between two peers over TCP.
+
+```sh
+# Terminal 1: start a peer with an initial set
+seq 100 200 | rateless-peer
+
+# Terminal 2: connect and reconcile
+seq 98 198 | rateless-peer 127.0.0.1:32000
+```
+
+Both peers stream coded symbols bidirectionally until the symmetric difference is resolved. After the initial piped input, you can type new values interactively to trigger re-reconciliation.
+
+### Options
+
+Options are passed as query string parameters on the address argument:
+
+```sh
+# Keyed hashing (both peers must use the same key)
+seq 100 200 | rateless-peer '?key=mysecret'
+seq 98 198 | rateless-peer '127.0.0.1:32000?key=mysecret'
+
+# ECMH mode with ristretto255 curve-point checksums (requires --features ecmh)
+seq 100 200 | rateless-peer '?ecmh=true'
+seq 98 198 | rateless-peer '127.0.0.1:32000?ecmh=true'
+
+# Both options combined
+seq 100 200 | rateless-peer '?ecmh=true&key=mysecret'
+seq 98 198 | rateless-peer '127.0.0.1:32000?ecmh=true&key=mysecret'
+```
+
+The default listen port is 32000. Both peers must use the same options.
+
 ## Library Usage
 
 ```rust
